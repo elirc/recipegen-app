@@ -1,0 +1,11 @@
+# Weeknight: trustworthy boundaries in a small CRUD app
+
+This course uses the recipe application that is actually in this repository. A user chooses ingredients, time and preferences; a server requests three recipes; the browser records history and favorites. That small flow contains several important engineering boundaries even though the application has no relational database or tenant model. We will not invent either one to make the diagram look more impressive.
+
+Start with [the codebase map](01-CODEBASE-MAP.md), then read [the concepts](02-CONCEPTS.md). Predict the behavior of a JSON `null` request before opening [the worked change](03-WORKED-CHANGE.md). Run the focused checks described in [testing and debugging](04-TESTING-AND-DEBUGGING.md). Attempt [the practice tasks](05-PRACTICE.md) before opening [the solutions](06-SOLUTIONS-AND-REVIEW.md). Finally, complete [the trace lab](07-TRACE-LAB.md) and read [the verification limits](VERIFICATION.md).
+
+The original API used TypeScript casts as if they validated runtime data. It also destructured a parsed request without establishing that the request was an object. A valid JSON document can still be the wrong shape. The delivered change introduces explicit parsing for requests, provider recipes, and saved records. Tests execute these production parsers and the generation orchestration directly; they do not ask a paid provider for deterministic output.
+
+Three levels of learning are deliberately separated. At junior level, identify where data enters and explain a guard clause. At mid level, decide which layer owns validation, preserve existing valid records during recovery, and write boundary tests that assert side effects did not occur. At senior level, discuss the limits of retries, schema evolution, process-local rate limiting, observability and migration policy without claiming the current implementation solves all of them.
+
+Use a notebook for predictions. For each exercise, record input, expected status, provider-call count, resulting browser state and the evidence that would change your conclusion. A successful answer is an executable explanation, not a list of fashionable architecture terms. Keep the existing README for installation and product context; this directory supplements it rather than replacing it.

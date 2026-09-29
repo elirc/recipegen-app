@@ -1,0 +1,78 @@
+{
+  "passed": true,
+  "executedTests": 46,
+  "checks": [
+    {
+      "project": "_Organized Desktop/08 App And Product Projects/recipegen-app",
+      "id": "e0e5886e8464",
+      "command": [
+        "node",
+        "--experimental-strip-types",
+        "--test",
+        "tests/boundaries.test.mjs"
+      ],
+      "cwd": "C:\\Users\\Owner\\Desktop\\AstraOrganized2\\astra-remaining-improvements\\stage\\e0e5886e8464",
+      "environmentOverrides": {},
+      "startedAt": "2026-09-21T22:54:56.711985+00:00",
+      "status": "complete",
+      "log": "crud-b01-boundaries.log",
+      "pid": 26864,
+      "exitCode": 0,
+      "passed": true,
+      "finishedAt": "2026-09-21T22:55:11.699509+00:00",
+      "elapsedSeconds": 14.98
+    },
+    {
+      "project": "_Organized Desktop/08 App And Product Projects/recipegen-app",
+      "id": "e0e5886e8464",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--incremental",
+        "false"
+      ],
+      "cwd": "C:\\Users\\Owner\\Desktop\\AstraOrganized2\\astra-remaining-improvements\\stage\\e0e5886e8464",
+      "environmentOverrides": {},
+      "startedAt": "2026-09-21T23:33:26.286266+00:00",
+      "status": "complete",
+      "log": "crud-b01-typecheck-installed.log",
+      "pid": 33520,
+      "exitCode": 0,
+      "passed": true,
+      "finishedAt": "2026-09-21T23:35:40.210548+00:00",
+      "elapsedSeconds": 133.92
+    }
+  ],
+  "uncompletedChecks": [
+    {
+      "project": "_Organized Desktop/08 App And Product Projects/recipegen-app",
+      "id": "e0e5886e8464",
+      "command": [
+        "node",
+        "node_modules/eslint/bin/eslint.js",
+        "app/api/recipes/route.ts",
+        "lib/validation.ts",
+        "lib/generation.ts",
+        "lib/storage.ts",
+        "tests/boundaries.test.mjs"
+      ],
+      "cwd": "C:\\Users\\Owner\\Desktop\\AstraOrganized2\\astra-remaining-improvements\\stage\\e0e5886e8464",
+      "environmentOverrides": {},
+      "startedAt": "2026-09-21T23:39:40.938829+00:00",
+      "status": "complete",
+      "log": "crud-b01-lint-installed.log",
+      "pid": 37244,
+      "exitCode": 4294967295,
+      "passed": false,
+      "finishedAt": "2026-09-21T23:50:33.755002+00:00",
+      "elapsedSeconds": 652.81,
+      "reviewNote": "Stopped by Astra after 652 seconds without diagnostics; not a passing lint result."
+    }
+  ],
+  "limits": [
+    "Focused production-module tests; Next HTTP adapter/browser/provider integration not executed.",
+    "No database exists in this flow. Storage recovery validates and filters on read without rewriting saved collections.",
+    "Changed-file ESLint was stopped after more than ten minutes without diagnostics; no lint pass is claimed."
+  ]
+}

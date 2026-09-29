@@ -1,0 +1,165 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest, NextResponse } from "next/server";
+import { Preferences, Recipe } from "@/lib/types";
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Simple in-memory rate limiter: max 10 requests per minute per IP
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= 10) return false;
+  entry.count++;
+  return true;
+}
+
+const SYSTEM_PROMPT = `You are a practical weeknight dinner recipe generator. You receive a list of ingredients someone has on hand, a time limit, and their preferences. You return exactly 3 realistic, genuinely doable dinner recipes.
+
+RULES:
+1. Every recipe MUST be completable within the given time limit (including prep and cook time).
+2. Use common, everyday ingredients. Never suggest obscure or hard-to-find items.
+3. Steps must be concise, specific, and actionable. Include actual temperatures, actual times, actual quantities. No vague instructions like "season to taste" or "cook until done."
+4. Assume a standard home kitchen: stovetop, oven, microwave, basic pots/pans/knives.
+5. Each ingredient must have a numeric amount and a unit (use "whole" for items like "1 whole onion").
+6. Mark each ingredient isFromUser: true if it matches (or is a clear variant of) something in the user's ingredient list, false otherwise.
+7. Keep it real — these are Tuesday night dinners, not restaurant dishes.
+
+If allowMissingOne is true:
+- Exactly 1 of the 3 recipes MAY include 1 ingredient the user didn't list.
+- That recipe MUST include a missingIngredient object with the missing item's name and a practical substitution.
+- The other 2 recipes must use ONLY the user's ingredients (plus assumed pantry staples: salt, pepper, oil, water).
+
+ASSUMED PANTRY STAPLES (don't list these as extra ingredients): salt, black pepper, cooking oil, water.
+
+Respond with ONLY a valid JSON array of 3 recipe objects. No markdown, no backticks, no explanation. The response must parse directly as JSON.
+
+Each recipe object must match this exact schema:
+{
+  "id": "unique-string",
+  "title": "string",
+  "description": "One sentence pitch",
+  "totalMinutes": number,
+  "difficulty": "easy" | "medium",
+  "servings": number,
+  "ingredients": [
+    { "name": "string", "amount": number, "unit": "string", "isFromUser": boolean }
+  ],
+  "steps": [
+    { "order": number, "instruction": "string", "durationMinutes": number | null }
+  ],
+  "missingIngredient": { "name": "string", "substitute": "string" } | null
+}`;
+
+function buildUserMessage(
+  ingredients: string[],
+  timeLimit: number,
+  preferences: Preferences
+): string {
+  return `Ingredients: ${ingredients.join(", ")}
+Time limit: ${timeLimit} minutes
+Servings: ${preferences.servings}
+Skill level: ${preferences.skillLevel}
+Dietary: ${preferences.dietary.length > 0 ? preferences.dietary.join(", ") : "none"}
+Allow missing one ingredient: ${preferences.allowMissingOne ? "yes" : "no"}`;
+}
+
+function validateRecipes(data: unknown): Recipe[] {
+  if (!Array.isArray(data) || data.length !== 3) {
+    throw new Error("Expected array of 3 recipes");
+  }
+  return data.map((r) => {
+    if (!r.id || !r.title || !r.description) throw new Error("Missing required fields");
+    if (!Array.isArray(r.ingredients) || !Array.isArray(r.steps)) throw new Error("Missing arrays");
+    return r as Recipe;
+  });
+}
+
+async function callClaude(
+  ingredients: string[],
+  timeLimit: number,
+  preferences: Preferences
+): Promise<Recipe[]> {
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 4096,
+    system: SYSTEM_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: buildUserMessage(ingredients, timeLimit, preferences),
+      },
+    ],
+  });
+
+  const text = message.content[0].type === "text" ? message.content[0].text : "";
+  const parsed = JSON.parse(text);
+  return validateRecipes(parsed);
+}
+
+export async function POST(request: NextRequest) {
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait a minute and try again." },
+      { status: 429 }
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const { ingredients, timeLimit, preferences } = body as {
+    ingredients: unknown;
+    timeLimit: unknown;
+    preferences: unknown;
+  };
+
+  if (!Array.isArray(ingredients) || ingredients.length < 2 || ingredients.length > 20) {
+    return NextResponse.json(
+      { error: "Please provide between 2 and 20 ingredients." },
+      { status: 400 }
+    );
+  }
+
+  if (![15, 30, 45, 60].includes(timeLimit as number)) {
+    return NextResponse.json({ error: "Time limit must be 15, 30, 45, or 60." }, { status: 400 });
+  }
+
+  const prefs = preferences as Preferences;
+  if (!prefs || !Array.isArray(prefs.dietary) || typeof prefs.servings !== "number") {
+    return NextResponse.json({ error: "Invalid preferences." }, { status: 400 });
+  }
+
+  try {
+    const recipes = await callClaude(ingredients as string[], timeLimit as number, prefs);
+    return NextResponse.json({ recipes });
+  } catch {
+    // Retry once
+    try {
+      const recipes = await callClaude(ingredients as string[], timeLimit as number, prefs);
+      return NextResponse.json({ recipes });
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Couldn't generate recipes right now. Check your API key or try again in a moment.",
+        },
+        { status: 500 }
+      );
+    }
+  }
+}

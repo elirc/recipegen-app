@@ -1,0 +1,13 @@
+# Runtime contracts, side effects and recoverable local data
+
+A TypeScript assertion says how the compiler should treat an expression. It does not inspect the expression at runtime. In the original route, `body as { ingredients: unknown; ... }` did not prevent `body` from being `null`. Likewise, asserting provider JSON as `Recipe[]` did not prove ingredient amounts were finite numbers or that step order was meaningful. The revised [parser](../lib/validation.ts) accepts `unknown` and establishes these properties before returning typed values.
+
+Distinguish three contracts. The request contract follows the existing controls: two to twenty distinct ingredient strings, one of four time limits, one to six whole servings, supported dietary options, a skill choice and a real boolean. The recipe contract checks nested objects, positive amounts, finite numeric values, bounded text and consecutive step order. The collection contract checks exactly three distinct recipe IDs and compares time, servings and missing-ingredient declarations with the accepted request.
+
+Those checks establish structural and some cross-field consistency. They do not establish nutritional suitability, culinary quality, factual ingredient provenance or whether the recipe truly satisfies a dietary preference. Do not turn a successful parser result into a stronger product claim than its code supports.
+
+The side-effect boundary is equally important. A malformed request should result in zero provider calls. That is both a correctness property and a useful cost-control property. The [orchestrator](../lib/generation.ts) places parsing before its retry loop, so retrying cannot turn invalid input into a paid request. Two failed provider attempts return a generic error; private provider details are not copied into the response.
+
+Local-storage recovery uses a different policy. Reading a collection with one malformed entry should not hide unrelated valid entries. [Storage parsing](../lib/storage.ts) validates entries individually and returns only accepted records, without rewriting the stored string during a read. This avoids destructive cleanup as an accidental side effect of rendering. Explicit writes retain the existing history cap and favorite-toggle semantics.
+
+Compare fail-fast and recover-partially behavior. A provider response is one new generated collection and must satisfy the complete contract. Existing history is a collection of independent records, so partial recovery is useful. The policy difference comes from ownership and user expectations, not from an arbitrary preference for throwing errors or catching exceptions.
