@@ -12,7 +12,10 @@ Exact originals of the four changed baseline files are retained under [snapshots
 
 ## Accepted evidence
 
-- [Result records](evidence/results.json): 46 passed, zero failed.
-- [Boundary test output](evidence/crud-b01-boundaries.log).
-- [TypeScript check output](evidence/crud-b01-typecheck-installed.log): exit 0, incremental disabled.
+- [Result records](evidence/results.json): `"passed": true`, `"executedTests": 46`, with a boundary-test run and a `tsc --noEmit --incremental false` run, both exit code 0. The 46 matches the case count in `tests/boundaries.test.mjs` (18 + 1 + 9 + 4 + 3 + 5 + 5 + 1; see chapter 4).
+- The log files named inside `results.json` (`crud-b01-boundaries.log`, `crud-b01-typecheck-installed.log`) are **not committed** to this repository; only `results.json` is. Earlier versions of this page linked to them as if they were present.
 - Changed-file ESLint produced no diagnostics after more than ten minutes and was stopped; its unsuccessful command record is retained in results.json. No lint pass is claimed.
+
+## Documentation refresh (October 2026)
+
+Chapters 1-7 and the root README were later expanded with file:line walkthroughs, Goal/Check exercises and a senior-review table. That pass only read the source; it did not re-run the tests, the type check or the app. The evidence above is still the September 21 run.

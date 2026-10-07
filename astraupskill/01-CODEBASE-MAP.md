@@ -19,3 +19,36 @@ Follow the successful browser path separately. HomeClient builds a generation-re
 The [type declarations](../lib/types.ts) describe trusted objects inside the program. They do not validate JSON. The new parsing functions turn unknown values into that trusted representation while dropping unrelated fields. Read each returned object literal and identify which fields are normalized, constrained or defaulted.
 
 For a code-reading exercise, draw two columns labeled transport and policy. Place request JSON decoding, HTTP status creation, provider retry count, ingredient bounds and storage recovery in one column each. Explain any choice that could reasonably belong in both. Then locate the [tests](../tests/boundaries.test.mjs) that prove invalid requests do not cross the provider boundary. There is no database transaction to trace here; a later SQL exercise should explicitly add that new responsibility instead of pretending it already exists.
+
+## Line-by-line route map
+
+| Step | Code | What happens |
+| --- | --- | --- |
+| 1 | `app/HomeClient.tsx:52` | Client guard: fewer than 2 ingredients → return without a request |
+| 2 | `app/HomeClient.tsx:57-61` | `fetch("/api/recipes")` with `{ ingredients, timeLimit, preferences }` |
+| 3 | `app/api/recipes/route.ts:94-104` | IP from `x-forwarded-for` / `x-real-ip`; over 10/min → 429 |
+| 4 | `app/api/recipes/route.ts:106-111` | `request.json()`; a syntax error → 400 `Invalid request body.` |
+| 5 | `lib/generation.ts:14-18` | `parseGenerationInput(body)`; any throw → 400 with the parser's message |
+| 6 | `lib/generation.ts:20-27` | Up to two attempts: `generate(input)` then `parseRecipes(output, input)`; first success → 200 |
+| 7 | `lib/generation.ts:28` | Both attempts failed → 500 with a fixed message |
+| 8 | `app/api/recipes/route.ts:114` | `NextResponse.json(response.body, { status: response.status })` |
+| 9 | `app/HomeClient.tsx:72-85` | Build a `GenerationResult` with a fresh `crypto.randomUUID()`, `saveToHistory`, write `sessionStorage.currentResult`, navigate |
+| 10 | `app/results/page.tsx:30-41` | Read `currentResult` back with a bare `JSON.parse` |
+
+Step 10 is worth noticing: the browser-storage hardening in `lib/storage.ts` covers `localStorage` history and favourites, but the results page reads `sessionStorage` without any parser. That asymmetry is one of the practice tasks in chapter 5.
+
+## Where each type is trusted
+
+| Value | Arrives as | Becomes trusted at |
+| --- | --- | --- |
+| HTTP body | `unknown` (`route.ts:106`) | `parseGenerationInput` returns (`lib/validation.ts:58-66`) |
+| Provider output | `unknown` (`route.ts:74-76`, return type `Promise<unknown>`) | `parseRecipes` returns (`lib/validation.ts:117`) |
+| `localStorage` history | string → `unknown` (`lib/storage.ts:74`) | per item, `parseGenerationResult` (`:76-78`) |
+| Share-link path segment | string | **never** — `decodeRecipe` casts (`lib/share.ts:17`) |
+| `sessionStorage.currentResult` | string | **never** — `JSON.parse` only (`app/results/page.tsx:37`) |
+
+## Exercises
+
+**Goal:** find the line that guarantees an invalid request is free. **Check:** you cite `lib/generation.ts:14-18` and explain that the `for` loop at `:20` is unreachable after the `return` at `:17`; the test at `tests/boundaries.test.mjs:38-43` asserts `calls === 0` for 18 bodies.
+
+**Goal:** locate every place a recipe can enter the UI. **Check:** your list has exactly four: the API response (`HomeClient.tsx:70`, `results/page.tsx:66`), `sessionStorage` (`results/page.tsx:37`), `localStorage` (`lib/storage.ts:22`, `:57`), and the share URL (`app/recipe/[share]/page.tsx:11`) — and you mark which two are validated.
